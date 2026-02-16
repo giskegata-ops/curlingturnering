@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Admin – CuØrLing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body { font-family: Arial; margin:0; background:#f4f6f9; }
+.container { max-width:900px; margin:auto; padding:20px; }
+.card { background:white; padding:20px; border-radius:10px; margin-bottom:15px; box-shadow:0 3px 8px rgba(0,0,0,0.1); }
+button { padding:10px 14px; border:none; border-radius:6px; margin:5px 5px 5px 0; cursor:pointer; }
+.green { background:#22c55e; color:white; }
+.orange { background:#f59e0b; color:white; }
+.red { background:#ef4444; color:white; }
+ul { padding-left:20px; }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div id="loginBox" class="card">
+<h3>Admin Login</h3>
+<input type="password" id="adminPass" placeholder="Passord">
+<button id="loginBtn">Logg inn</button>
+</div>
+
+<div id="adminPanel" style="display:none;">
+
+<div class="card">
+<h3>Påmeldte lag</h3>
+<ul id="teamList"></ul>
+</div>
+
+<div class="card">
+<button class="orange" id="closeBtn">🔒 Lukk påmelding + generer kamper</button>
+<button class="green" id="openBtn">🔓 Åpne påmelding igjen</button>
+<button class="red" id="resetBtn">🗑 Nullstill hele turneringen</button>
+<button id="regenBtn">🔁 Regenerer oppsett</button>
+</div>
+
+</div>
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBqUL0dGsQKwLyVkayGfcI486fiAjdXcCA",
+  authDomain: "curlingturnering.firebaseapp.com",
+  projectId: "curlingturnering",
+  storageBucket: "curlingturnering.firebasestorage.app",
+  messagingSenderId: "841721815539",
+  appId: "1:841721815539:web:e2734644cc50292a6af286"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const riktigPassord = "corling2026";
+
+document.getElementById("loginBtn").addEventListener("click", () => {
+  if (document.getElementById("adminPass").value === riktigPassord) {
+    document.getElementById("loginBox").style.display="none";
+    document.getElementById("adminPanel").style.display="block";
+    hentLag();
+  } else {
+    alert("Feil passord");
+  }
+});
+
+async function hentLag(){
+  const snapshot = await getDocs(collection(db,"teams"));
+  const list = document.getElementById("teamList");
+  list.innerHTML="";
+  snapshot.forEach(team=>{
+    const li=document.createElement("li");
+    li.textContent=team.data().name;
+    list.appendChild(li);
+  });
+}
+
+// ======== SIKKER SLETTING AV MATCHES ========
+
+async function clearMatches(){
+  const snapshot = await getDocs(collection(db,"matches"));
+  const deletions = snapshot.docs.map(m =>
+    deleteDoc(doc(db,"matches",m.id))
+  );
+  await Promise.all(deletions);
+}
+
+// ======== GENERER ROUND ROBIN ========
+
+async function generateSchedule(){
+
+  await clearMatches();
+
+  const snapshot = await getDocs(collection(db,"teams"));
+  let teams=[];
+
+  snapshot.forEach(team=>{
+    teams.push({ id:team.id, name:team.data().name });
+  });
+
+  if(teams.length<2){
+    alert("Minst 2 lag kreves");
+    return;
+  }
+
+  const totalMatches=(teams.length*(teams.length-1))/2;
+  console.log("Lag:",teams.length,"Kamper som genereres:",totalMatches);
+
+  if(teams.length%2!==0){
+    teams.push({id:"bye",name:"BYE"});
+  }
+
+  const rounds=teams.length-1;
+  const half=teams.length/2;
+
+  let roundNr=1;
+  let courtToggle=1;
+
+  for(let r=0;r<rounds;r++){
+
+    for(let i=0;i<half;i++){
+
+      const team1=teams[i];
+      const team2=teams[teams.length-1-i];
+
+      if(team1.id!=="bye" && team2.id!=="bye"){
+
+        await addDoc(collection(db,"matches"),{
+          team1Id:team1.id,
+          team1Name:team1.name,
+          team2Id:team2.id,
+          team2Name:team2.name,
+          score1:0,
+          score2:0,
+          played:false,
+          resultType:"normal",
+          round:roundNr,
+          court:courtToggle,
+          createdAt:new Date()
+        });
+
+        courtToggle = courtToggle===1 ? 2 : 1;
+      }
+    }
+
+    const fixed=teams[0];
+    const rotating=teams.slice(1);
+    rotating.unshift(rotating.pop());
+    teams=[fixed,...rotating];
+
+    roundNr++;
+  }
+
+  alert("Oppsett generert korrekt!");
+}
+
+// ======== KNAPPER ========
+
+document.getElementById("closeBtn").addEventListener("click",async()=>{
+  await updateDoc(doc(db,"settings","tournament"),{
+    registrationOpen:false
+  });
+  await generateSchedule();
+});
+
+document.getElementById("regenBtn").addEventListener("click",generateSchedule);
+
+document.getElementById("openBtn").addEventListener("click",async()=>{
+  await updateDoc(doc(db,"settings","tournament"),{
+    registrationOpen:true
+  });
+  alert("Påmelding åpnet igjen");
+});
+
+document.getElementById("resetBtn").addEventListener("click",async()=>{
+  if(!confirm("Er du sikker? Alt slettes.")) return;
+
+  await clearMatches();
+
+  const teams=await getDocs(collection(db,"teams"));
+  for(const t of teams.docs){
+    await deleteDoc(doc(db,"teams",t.id));
+  }
+
+  await updateDoc(doc(db,"settings","tournament"),{
+    registrationOpen:true
+  });
+
+  hentLag();
+  alert("Turneringen er nullstilt");
+});
+
+</script>
+</body>
+</html>
