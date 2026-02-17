@@ -1,195 +1,10 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CuØrLing Turnering</title>
-
-<style>
-
-:root {
-  --primary:#1e3a8a;
-  --accent:#2563eb;
-  --bg:#f3f4f6;
-  --card:#ffffff;
-  --green:#16a34a;
-  --silver:#e5e7eb;
-  --bronze:#fcd34d;
-}
-
-body {
-  margin:0;
-  font-family:system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  background:var(--bg);
-}
-
-header {
-  background:linear-gradient(135deg,var(--primary),var(--accent));
-  color:white;
-  padding:22px;
-  text-align:center;
-  font-size:22px;
-  font-weight:600;
-  letter-spacing:0.5px;
-}
-
-.container {
-  max-width:1000px;
-  margin:auto;
-  padding:20px;
-}
-
-.card {
-  background:var(--card);
-  border-radius:14px;
-  padding:20px;
-  margin-bottom:20px;
-  box-shadow:0 6px 16px rgba(0,0,0,0.08);
-}
-
-.card h3 {
-  margin-top:0;
-  margin-bottom:15px;
-  font-size:18px;
-}
-
-.nextMatch {
-  font-size:20px;
-  font-weight:600;
-  text-align:center;
-  padding:10px;
-}
-
-.badge {
-  display:inline-block;
-  padding:4px 8px;
-  border-radius:8px;
-  font-size:12px;
-  font-weight:600;
-  margin-left:8px;
-}
-
-.badge1 { background:#dbeafe; color:#1e40af; }
-.badge2 { background:#ede9fe; color:#5b21b6; }
-
-table {
-  width:100%;
-  border-collapse:collapse;
-}
-
-th {
-  background:var(--primary);
-  color:white;
-  padding:10px;
-  font-weight:500;
-}
-
-td {
-  padding:8px;
-  text-align:center;
-  font-size:14px;
-}
-
-tr:nth-child(even){
-  background:#f9fafb;
-}
-
-.top1 { background:#fef9c3; }
-.top2 { background:#f3f4f6; }
-.top3 { background:#fde68a; }
-.top4 { background:#dcfce7; }
-
-.match {
-  padding:10px;
-  border-bottom:1px solid #eee;
-  font-size:14px;
-}
-
-.match.finished {
-  opacity:0.6;
-}
-
-input {
-  width:45px;
-  padding:4px;
-  margin:0 3px;
-}
-
-button {
-  padding:5px 8px;
-  border:none;
-  border-radius:6px;
-  background:var(--primary);
-  color:white;
-  cursor:pointer;
-  font-size:12px;
-}
-
-select {
-  padding:4px;
-  margin-left:5px;
-  font-size:12px;
-}
-
-@media(max-width:700px){
-  .nextMatch { font-size:16px; }
-  th,td { font-size:12px; }
-}
-
-</style>
-</head>
-
-<body>
-
-<header>🏆 CuØrLing Turnering</header>
-
-<div class="container">
-
-<div class="card">
-<h3>Neste kamp</h3>
-<div id="nextCourt1" class="nextMatch">
-Bane 1 <span class="badge badge1">1</span><br>
-Ingen kamp
-</div>
-<hr>
-<div id="nextCourt2" class="nextMatch">
-Bane 2 <span class="badge badge2">2</span><br>
-Ingen kamp
-</div>
-</div>
-
-<div class="card">
-<h3>Tabell</h3>
-<table>
-<thead>
-<tr>
-<th>#</th>
-<th>Lag</th>
-<th>K</th>
-<th>V</th>
-<th>V(ET)</th>
-<th>T(ET)</th>
-<th>T</th>
-<th>P</th>
-</tr>
-</thead>
-<tbody id="tableBody"></tbody>
-</table>
-<p style="margin-top:10px;"><b>Topp 4 går til sluttspill</b></p>
-</div>
-
-<div class="card">
-<h3>Alle kamper</h3>
-<div id="matchList"></div>
-</div>
-
-</div>
-
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getFirestore, collection, getDocs, updateDoc, doc }
-from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { 
+  getFirestore, collection, getDocs, getDoc,
+  addDoc, updateDoc, doc
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBqUL0dGsQKwLyVkayGfcI486fiAjdXcCA",
@@ -203,150 +18,216 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-async function hentKamper(){
+/* =============================
+   REGISTRATION STATUS
+============================= */
 
-  const snapshot = await getDocs(collection(db,"matches"));
-  let matches=[];
-
-  snapshot.forEach(docSnap=>{
-    matches.push({id:docSnap.id,...docSnap.data()});
-  });
-
-  matches.sort((a,b)=>a.round-b.round);
-
-  const list=document.getElementById("matchList");
-  list.innerHTML="";
-
-  let nr=1;
-
-  for(let m of matches){
-
-    const div=document.createElement("div");
-    div.className="match"+(m.played?" finished":"");
-
-    if(m.played){
-      div.innerHTML=
-      `<b>Kamp ${nr}</b> – Bane ${m.court}<br>
-       ${m.team1Name} ${m.score1} - ${m.score2} ${m.team2Name}
-       ${m.resultType==="overtime"?"(ET)":""}`;
-    } else {
-      div.innerHTML=
-      `<b>Kamp ${nr}</b> – Bane ${m.court}<br>
-       ${m.team1Name}
-       <input id="s1-${m.id}" type="number">
-       -
-       <input id="s2-${m.id}" type="number">
-       ${m.team2Name}
-       <select id="type-${m.id}">
-         <option value="normal">Ordinær</option>
-         <option value="overtime">Ekstraomganger</option>
-       </select>
-       <button onclick="registrer('${m.id}')">Lagre</button>`;
-    }
-
-    list.appendChild(div);
-    nr++;
-  }
-
-  oppdaterNeste(matches);
-  oppdaterTabell(matches);
+async function registrationOpen() {
+  const snap = await getDoc(doc(db,"settings","tournament"));
+  return snap.exists() && snap.data().registrationOpen === true;
 }
 
-window.registrer = async function(id){
+/* =============================
+   ADD TEAM (med duplikatsjekk)
+============================= */
 
-  let s1=parseInt(document.getElementById(`s1-${id}`).value)||0;
-  let s2=parseInt(document.getElementById(`s2-${id}`).value)||0;
-  const type=document.getElementById(`type-${id}`).value;
+document.getElementById("addTeamBtn")
+.addEventListener("click", async () => {
 
-  if(s1===s2){ alert("Må være vinner"); return; }
+  if (!(await registrationOpen())) {
+    alert("Påmelding er stengt!");
+    return;
+  }
+
+  const name = document.getElementById("teamName").value.trim();
+  if (!name) {
+    alert("Skriv inn lagnavn");
+    return;
+  }
+
+  const normalized = name.toLowerCase();
+  const snap = await getDocs(collection(db,"teams"));
+
+  let exists = false;
+  snap.forEach(t=>{
+    if(t.data().name.toLowerCase() === normalized){
+      exists = true;
+    }
+  });
+
+  if(exists){
+    alert("Dette lagnavnet finnes allerede!");
+    return;
+  }
+
+  await addDoc(collection(db,"teams"),{
+    name,
+    createdAt:new Date()
+  });
+
+  document.getElementById("teamName").value="";
+  loadTeams();
+});
+
+/* =============================
+   LOAD TEAMS
+============================= */
+
+async function loadTeams() {
+  const snap = await getDocs(collection(db,"teams"));
+  const ul = document.getElementById("teamList");
+  ul.innerHTML="";
+  snap.forEach(t=>{
+    const li=document.createElement("li");
+    li.textContent=t.data().name;
+    ul.appendChild(li);
+  });
+}
+
+/* =============================
+   LOAD MATCHES + TABLE
+============================= */
+
+async function loadMatches() {
+
+  const snap = await getDocs(collection(db,"matches"));
+  const list = document.getElementById("matchList");
+  list.innerHTML="";
+
+  const standings = {};
+  let matchNumber = 1;
+  let next1="Ingen kamp";
+  let next2="Ingen kamp";
+
+  snap.forEach(m=>{
+
+    const data=m.data();
+
+    if(!standings[data.team1Name])
+      standings[data.team1Name]={K:0,V:0,VET:0,TET:0,T:0,P:0};
+
+    if(!standings[data.team2Name])
+      standings[data.team2Name]={K:0,V:0,VET:0,TET:0,T:0,P:0};
+
+    if(data.played){
+
+      standings[data.team1Name].K++;
+      standings[data.team2Name].K++;
+
+      if(data.type==="ordinær"){
+        if(data.score1>data.score2){
+          standings[data.team1Name].V++;
+          standings[data.team1Name].P+=3;
+          standings[data.team2Name].T++;
+        } else {
+          standings[data.team2Name].V++;
+          standings[data.team2Name].P+=3;
+          standings[data.team1Name].T++;
+        }
+      }
+
+      if(data.type==="et"){
+        if(data.score1>data.score2){
+          standings[data.team1Name].VET++;
+          standings[data.team1Name].P+=2;
+          standings[data.team2Name].TET++;
+          standings[data.team2Name].P+=1;
+        } else {
+          standings[data.team2Name].VET++;
+          standings[data.team2Name].P+=2;
+          standings[data.team1Name].TET++;
+          standings[data.team1Name].P+=1;
+        }
+      }
+    }
+
+    if(!data.played){
+      if(data.bane===1 && next1==="Ingen kamp")
+        next1=`${data.team1Name} vs ${data.team2Name}`;
+      if(data.bane===2 && next2==="Ingen kamp")
+        next2=`${data.team1Name} vs ${data.team2Name}`;
+    }
+
+    const div=document.createElement("div");
+
+    div.innerHTML=`
+      <strong>Kamp ${matchNumber}</strong> – Bane ${data.bane}: 
+      ${data.team1Name}
+      <input type="number" id="s1${matchNumber}" style="width:50px">
+      -
+      <input type="number" id="s2${matchNumber}" style="width:50px">
+      ${data.team2Name}
+      <select id="type${matchNumber}">
+        <option value="ordinær">Ordinær</option>
+        <option value="et">Ekstraomg.</option>
+      </select>
+      <button onclick="saveResult('${m.id}',${matchNumber})">
+        Lagre
+      </button>
+    `;
+
+    list.appendChild(div);
+    matchNumber++;
+  });
+
+  document.getElementById("next1").textContent=next1;
+  document.getElementById("next2").textContent=next2;
+
+  const tableBody=document.getElementById("standings");
+  tableBody.innerHTML="";
+
+  const sorted=Object.entries(standings)
+    .sort((a,b)=>b[1].P-a[1].P);
+
+  sorted.forEach((team,i)=>{
+    const row=document.createElement("tr");
+    if(i<4) row.classList.add("top4");
+
+    row.innerHTML=`
+      <td>${i+1}</td>
+      <td>${team[0]}</td>
+      <td>${team[1].K}</td>
+      <td>${team[1].V}</td>
+      <td>${team[1].VET}</td>
+      <td>${team[1].TET}</td>
+      <td>${team[1].T}</td>
+      <td>${team[1].P}</td>
+    `;
+
+    tableBody.appendChild(row);
+  });
+}
+
+/* =============================
+   SAVE RESULT
+============================= */
+
+window.saveResult = async function(id,nr){
+
+  const s1=parseInt(document.getElementById("s1"+nr).value)||0;
+  const s2=parseInt(document.getElementById("s2"+nr).value)||0;
+  const type=document.getElementById("type"+nr).value;
+
+  if(s1===s2){
+    alert("Kan ikke ende likt");
+    return;
+  }
 
   await updateDoc(doc(db,"matches",id),{
     score1:s1,
     score2:s2,
-    played:true,
-    resultType:type
+    type,
+    played:true
   });
 
-  hentKamper();
-}
+  loadMatches();
+};
 
-function oppdaterNeste(matches){
+/* =============================
+   INIT
+============================= */
 
-  const next1=matches.find(m=>!m.played && m.court===1);
-  const next2=matches.find(m=>!m.played && m.court===2);
-
-  document.getElementById("nextCourt1").innerHTML=
-    `Bane 1 <span class="badge badge1">1</span><br>`+
-    (next1?`${next1.team1Name} vs ${next1.team2Name}`:"Ingen kamp");
-
-  document.getElementById("nextCourt2").innerHTML=
-    `Bane 2 <span class="badge badge2">2</span><br>`+
-    (next2?`${next2.team1Name} vs ${next2.team2Name}`:"Ingen kamp");
-}
-
-function oppdaterTabell(matches){
-
-  let stats={};
-
-  matches.forEach(m=>{
-
-    if(!stats[m.team1Name]) stats[m.team1Name]={K:0,V:0,VET:0,TET:0,T:0,P:0};
-    if(!stats[m.team2Name]) stats[m.team2Name]={K:0,V:0,VET:0,TET:0,T:0,P:0};
-
-    if(!m.played) return;
-
-    stats[m.team1Name].K++;
-    stats[m.team2Name].K++;
-
-    if(m.score1>m.score2){
-      if(m.resultType==="overtime"){
-        stats[m.team1Name].VET++; stats[m.team2Name].TET++;
-        stats[m.team1Name].P+=2; stats[m.team2Name].P+=1;
-      } else {
-        stats[m.team1Name].V++; stats[m.team1Name].P+=3;
-        stats[m.team2Name].T++;
-      }
-    } else {
-      if(m.resultType==="overtime"){
-        stats[m.team2Name].VET++; stats[m.team1Name].TET++;
-        stats[m.team2Name].P+=2; stats[m.team1Name].P+=1;
-      } else {
-        stats[m.team2Name].V++; stats[m.team2Name].P+=3;
-        stats[m.team1Name].T++;
-      }
-    }
-
-  });
-
-  let arr=Object.entries(stats)
-  .sort((a,b)=>b[1].P-a[1].P);
-
-  const body=document.getElementById("tableBody");
-  body.innerHTML="";
-
-  arr.forEach((team,index)=>{
-    const tr=document.createElement("tr");
-    if(index===0) tr.className="top1";
-    else if(index===1) tr.className="top2";
-    else if(index===2) tr.className="top3";
-    else if(index===3) tr.className="top4";
-
-    tr.innerHTML=
-    `<td>${index+1}</td>
-     <td>${team[0]}</td>
-     <td>${team[1].K}</td>
-     <td>${team[1].V}</td>
-     <td>${team[1].VET}</td>
-     <td>${team[1].TET}</td>
-     <td>${team[1].T}</td>
-     <td>${team[1].P}</td>`;
-
-    body.appendChild(tr);
-  });
-}
-
-hentKamper();
+loadTeams();
+loadMatches();
 
 </script>
-</body>
-</html>
